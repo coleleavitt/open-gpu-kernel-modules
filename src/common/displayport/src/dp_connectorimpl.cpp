@@ -4534,7 +4534,11 @@ bool ConnectorImpl::allocateDpTunnelBw(NvU64 bandwidth)
     //            = DPCD Value / granularityMultiplier
     // DPCD Value = bandwidth * granularityMultiplier
     //
-    requestBw = (NvU8) divide_ceil(bandwidth * granularityMultiplier, 1000 * 1000 * 1000);
+    {
+        NvU64 rawBw = divide_ceil(bandwidth * (NvU64)granularityMultiplier,
+                                   (NvU64)1000 * 1000 * 1000);
+        requestBw = (rawBw > NV_U8_MAX) ? (NvU8)NV_U8_MAX : (NvU8)rawBw;
+    }
 
     if (requestBw > estimatedBw)
     {
@@ -5148,12 +5152,6 @@ bool ConnectorImpl::isLinkLost()
             if (!hal->getLaneStatusChannelEqualizationDone(i))
                 return true;
         }
-
-        if (!(hal->isDpInTunnelingSupported() && main->isDpTunnelingHwBugWarEnabled()))
-        {
-            if (!hal->getInterlaneAlignDone())
-                return true;
-        }
     }
     return false;
 }
@@ -5663,6 +5661,23 @@ bool ConnectorImpl::trainLinkOptimized(LinkConfiguration lConfig)
                 };
             }
 
+
+            //
+            // If RM fell back to a lower link config during training
+            // (main->train() can internally reduce lanes/rate), the DSC
+            // PPS parameters computed during compoundQuery for
+            // highestAssessedLC are now stale. Mark as failed so the
+            // caller does not proceed with mismatched DSC configuration.
+            //
+            if (highestAssessedLC.isValid() &&
+                highestAssessedLC != activeLinkConfig &&
+                activeLinkConfig.isValid())
+            {
+                DP_PRINTF(DP_WARNING,
+                    "DPCONN> MST link trained at lower config than assessed;"
+                    " DSC parameters may be stale.");
+                bLinkTrainingSuccessful = false;
+            }
             lConfig = activeLinkConfig;
 
             if (bEnteredFlushMode)
