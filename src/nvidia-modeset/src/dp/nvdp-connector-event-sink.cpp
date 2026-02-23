@@ -506,6 +506,9 @@ void ConnectorEventSink::notifyZombieStateChange(DisplayPort::Device *dev,
             sendEvent = TRUE;
         }
 
+
+        // Invalidate MSA cap cache so EnableVRR re-queries with stable link
+        dev->resetIgnoreMsaCapCache();
         // Determine whether the DP library reenabled VRR on this display.
         EnableVRR(pDpyEvo);
 
