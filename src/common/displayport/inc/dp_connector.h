@@ -273,6 +273,8 @@ namespace DisplayPort
 
         virtual bool getIgnoreMSACap() = 0;
 
+        virtual void resetIgnoreMsaCapCache() = 0;
+
         virtual AuxRetry::status setIgnoreMSAEnable(bool msaTimingParamIgnoreEn) = 0;
 
         virtual NvBool isDSCPossible() = 0;

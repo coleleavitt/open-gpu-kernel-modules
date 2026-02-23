@@ -370,6 +370,11 @@ namespace DisplayPort
 
         bool getIgnoreMSACap();
 
+        void resetIgnoreMsaCapCache()
+        {
+            bIgnoreMsaCapCached = false;
+        }
+
         AuxRetry::status setIgnoreMSAEnable(bool msaTimingParamIgnoreEn);
 
         bool isVirtualPeerDevice()

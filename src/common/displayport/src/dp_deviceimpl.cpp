@@ -3157,29 +3157,69 @@ bool DeviceImpl::getIgnoreMSACap()
     NvU8 byte = 0;
     unsigned size = 0;
     unsigned nakReason = NakUndefined;
-    AuxBus::status status;
-
+    AuxBus::status status = AuxBus::nack;
     if (bIgnoreMsaCapCached)
     {
         return bIgnoreMsaCap;
     }
-
     if (this->isMultistream())
     {
+        //
+        // The sideband AUX channel to downstream devices may not be
+        // immediately ready after payload allocation and ACT.  Retry
+        // with a small delay to tolerate MST hub settling time.
+        //
+        const unsigned maxRetries = 3;
+        const unsigned retryDelayMs = 5;
+
+        for (unsigned attempt = 0; attempt < maxRetries; attempt++)
+        {
+            byte = 0;
+            size = 0;
+            nakReason = NakUndefined;
         status = this->getDpcdData(NV_DPCD_DOWN_STREAM_PORT,
-                                   &byte, sizeof byte, &size, &nakReason);
+                                       &byte, sizeof byte, &size, &nakReason);
+            if (status == AuxBus::success)
+                break;
+
+            if (attempt < maxRetries - 1)
+            {
+                DP_PRINTF(DP_WARNING,
+                    "DP-DEV> DPCD 0x7 read attempt %u/%u failed (nak=%u), retrying...",
+                    attempt + 1, maxRetries, nakReason);
+                connector->timer->sleep(retryDelayMs);
+            }
+        }
+
         if (status == AuxBus::success)
         {
             if(FLD_TEST_DRF(_DPCD, _DOWN_STREAM_PORT, _MSA_TIMING_PAR_IGNORED, _YES, byte))
             {
                 if (this->parent && this->parent->isVirtualPeerDevice())
                 {
-                    byte = 0;
-                    size = 0;
-                    nakReason = NakUndefined;
-
+                    //
+                    // Apply the same retry logic for the parent device
+                    // read through the virtual peer device.
+                    //
+                    for (unsigned attempt = 0; attempt < maxRetries; attempt++)
+                    {
+                        byte = 0;
+                        size = 0;
+                        nakReason = NakUndefined;
                     status = this->parent->getDpcdData(NV_DPCD_DOWN_STREAM_PORT,
-                                                       &byte, sizeof byte, &size, &nakReason);
+                                                           &byte, sizeof byte, &size, &nakReason);
+                        if (status == AuxBus::success)
+                            break;
+
+                        if (attempt < maxRetries - 1)
+                        {
+                            DP_PRINTF(DP_WARNING,
+                                "DP-DEV> Parent DPCD 0x7 read attempt %u/%u failed, retrying...",
+                                attempt + 1, maxRetries);
+                            connector->timer->sleep(retryDelayMs);
+                        }
+                    }
+
                     if (status == AuxBus::success)
                     {
                         if(FLD_TEST_DRF(_DPCD, _DOWN_STREAM_PORT, _MSA_TIMING_PAR_IGNORED, _YES, byte))
@@ -3194,7 +3234,11 @@ bool DeviceImpl::getIgnoreMSACap()
                     }
                     else
                     {
-                        DP_PRINTF(DP_ERROR, "DP-DEV> Aux Read from DPCD offset 0x7 failed!");
+                        DP_PRINTF(DP_ERROR,
+                            "DP-DEV> Parent DPCD 0x7 read failed after %u attempts, caching as unsupported",
+                            maxRetries);
+                        bIgnoreMsaCap = false;
+                        bIgnoreMsaCapCached = true;
                         return false;
                     }
                 }
@@ -3212,7 +3256,11 @@ bool DeviceImpl::getIgnoreMSACap()
         }
         else
         {
-            DP_PRINTF(DP_ERROR, "DP-DEV> Aux Read from DPCD offset 0x7 failed!");
+            DP_PRINTF(DP_ERROR,
+                "DP-DEV> DPCD 0x7 read failed after %u attempts, caching as unsupported",
+                maxRetries);
+            bIgnoreMsaCap = false;
+            bIgnoreMsaCapCached = true;
             return false;
         }
     }
