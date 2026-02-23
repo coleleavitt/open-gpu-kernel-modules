@@ -6029,10 +6029,6 @@ bool ConnectorImpl::isLinkLost()
             if (!hal->getLaneStatusChannelEqualizationDone(i))
                 return true;
         }
-
-        if (!hal->getInterlaneAlignDone())
-            return true;
-
     }
     return false;
 }
