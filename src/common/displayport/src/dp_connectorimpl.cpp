@@ -7265,19 +7265,23 @@ bool ConnectorImpl::beforeAddStreamMST(GroupImpl * group, bool test, bool forFlu
             main->controlRateGoverning(group->headIndex, true /*enable*/);
         }
 
-        // If not single Head MST mode or if primary stream then program here
-        // other streams programmed in NAE
-        if (forFlushMode ||
-            (isPrimaryStream &&
-             addStreamMSTIntransitionGroups.isEmpty()))
+        //
+        // Defer payload allocation to afterAddStream (NAE) so that the
+        // MST hub receives the payload table update only after the SOR is
+        // attached and driving the stream.  Allocating the payload before
+        // the hardware update can cause some MST hubs (e.g. Synaptics) to
+        // enter a bad state when they see allocated timeslots with no
+        // stream data, leaving the monitor dark.  Flush mode still
+        // allocates immediately because it needs the payload programmed
+        // before the hardware is quiesced.
+        //
+        if (forFlushMode)
         {
             hal->payloadTableClearACT();
             hal->payloadAllocate(group->streamIndex, group->timeslot.begin, group->timeslot.count);
         }
-        else if (isPrimaryStream &&
-                 !addStreamMSTIntransitionGroups.isEmpty())
+        else if (isPrimaryStream)
         {
-
             group->bDeferredPayloadAlloc = true;
         }
 
