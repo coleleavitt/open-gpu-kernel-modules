@@ -4898,7 +4898,11 @@ bool ConnectorImpl::allocateDpTunnelBw(NvU64 bandwidth)
     //            = DPCD Value / granularityMultiplier
     // DPCD Value = bandwidth * granularityMultiplier
     //
-    requestBw = (NvU8) divide_ceil(bandwidth * granularityMultiplier, 1000 * 1000 * 1000);
+    {
+        NvU64 rawBw = divide_ceil(bandwidth * (NvU64)granularityMultiplier,
+                                   (NvU64)1000 * 1000 * 1000);
+        requestBw = (rawBw > NV_U8_MAX) ? (NvU8)NV_U8_MAX : (NvU8)rawBw;
+    }
 
     if (requestBw > estimatedBw)
     {
