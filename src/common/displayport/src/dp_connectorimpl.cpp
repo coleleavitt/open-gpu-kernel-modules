@@ -6559,6 +6559,22 @@ bool ConnectorImpl::trainLinkOptimized(LinkConfiguration lConfig)
                 train(highestAssessedLC, true);
             }
 
+            //
+            // If RM still fell back to a lower link config after the forced
+            // retrain (main->train() can internally reduce lanes/rate), the
+            // DSC PPS parameters computed during compoundQuery for
+            // highestAssessedLC are now stale. Mark as failed so the
+            // caller does not proceed with mismatched DSC configuration.
+            //
+            if (highestAssessedLC.isValid() &&
+                highestAssessedLC != activeLinkConfig &&
+                activeLinkConfig.isValid())
+            {
+                DP_PRINTF(DP_WARNING,
+                    "DPCONN> MST link trained at lower config than assessed;"
+                    " DSC parameters may be stale.");
+                bLinkTrainingSuccessful = false;
+            }
             lConfig = activeLinkConfig;
 
             if (bEnteredFlushMode)
