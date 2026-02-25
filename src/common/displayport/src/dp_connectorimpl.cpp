@@ -3191,6 +3191,13 @@ void ConnectorImpl::fireEventsInternal()
             allocatedDpTunnelBwShadow = allocatedDpTunnelBw;
             allocatedDpTunnelBw = getMaxTunnelBw();
             sink->newDevice(dev);
+            DP_PRINTF(DP_NOTICE,
+                "DPCONN> newDevice dispatched: %s plugged=%d zombie=%d tunnelBwShadow=%" NvU64_fmtu " tunnelBwMax=%" NvU64_fmtu,
+                dev->address.toString(sb),
+                dev->isPlugged() ? 1 : 0,
+                dev->isZombie() ? 1 : 0,
+                allocatedDpTunnelBwShadow,
+                allocatedDpTunnelBw);
         }
     }
 
@@ -7458,6 +7465,14 @@ void ConnectorImpl::notifyLongPulse(bool statusConnected)
 {
     NvU32 muxState = 0;
     NV_DPTRACE_INFO(HOTPLUG, statusConnected, connectorActive, previousPlugged);
+    DP_PRINTF(DP_NOTICE,
+        "DP> notifyLongPulse: connected=%d previousPlugged=%d connectorActive=%d messagingEnabled=%d mst=%d activeGroupsEmpty=%d",
+        statusConnected,
+        previousPlugged,
+        connectorActive,
+        hal->isMessagingEnabled() ? 1 : 0,
+        linkUseMultistream() ? 1 : 0,
+        activeGroups.isEmpty() ? 1 : 0);
 
     if (!connectorActive)
     {
@@ -7523,7 +7538,13 @@ void ConnectorImpl::notifyLongPulse(bool statusConnected)
             (!(firmwareGroup && ((GroupImpl *)firmwareGroup)->headInFirmware)) &&
             (hal->isMessagingEnabled()))
         {
-            DP_PRINTF(DP_ERROR, "DP> Bail out early on redundant hotplug with active MST stream");
+            DP_PRINTF(DP_ERROR,
+                "DP> Bail out early on redundant hotplug with active MST stream (prevPlugged=%d connected=%d messagingEnabled=%d activeGroupsEmpty=%d headInFirmware=%d)",
+                previousPlugged,
+                statusConnected,
+                hal->isMessagingEnabled() ? 1 : 0,
+                activeGroups.isEmpty() ? 1 : 0,
+                (firmwareGroup && ((GroupImpl *)firmwareGroup)->headInFirmware) ? 1 : 0);
             return;
         }
     }
