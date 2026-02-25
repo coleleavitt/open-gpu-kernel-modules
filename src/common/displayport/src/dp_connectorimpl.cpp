@@ -6967,7 +6967,9 @@ void ConnectorImpl::notifyLongPulse(bool statusConnected)
     NvU64 nowUs = timer->getTimeUs();
     NV_DPTRACE_INFO(HOTPLUG, statusConnected, connectorActive, previousPlugged);
     DP_PRINTF(DP_NOTICE,
-        "DP> notifyLongPulse: connected=%d previousPlugged=%d connectorActive=%d messagingEnabled=%d mst=%d activeGroupsEmpty=%d",
+        "DP>[dpId=0x%08x eDP=%d] notifyLongPulse: connected=%d previousPlugged=%d connectorActive=%d messagingEnabled=%d mst=%d activeGroupsEmpty=%d",
+        main->getRootDisplayId(),
+        main->isEDP() ? 1 : 0,
         statusConnected,
         previousPlugged,
         connectorActive,
@@ -6977,7 +6979,7 @@ void ConnectorImpl::notifyLongPulse(bool statusConnected)
 
     if (!connectorActive)
     {
-        DP_PRINTF(DP_ERROR, "DP> Got a long pulse before any connector is active!!");
+        DP_PRINTF(DP_ERROR, "DP>[dpId=0x%08x] Got a long pulse before any connector is active!!", main->getRootDisplayId());
         return;
     }
 
@@ -7055,7 +7057,8 @@ void ConnectorImpl::notifyLongPulse(bool statusConnected)
         (nowUs < hpdPulseGuardUntilUs))
     {
         DP_PRINTF(DP_WARNING,
-            "DP> Ignoring long-pulse disconnect during HPD pulse guard (remainingUs=%" NvU64_fmtu ", previousPlugged=%d)",
+            "DP>[dpId=0x%08x] Ignoring long-pulse disconnect during HPD pulse guard (remainingUs=%" NvU64_fmtu ", previousPlugged=%d)",
+            main->getRootDisplayId(),
             hpdPulseGuardUntilUs - nowUs,
             previousPlugged ? 1 : 0);
         return;
@@ -7112,6 +7115,8 @@ bool ConnectorImpl::updateDpTunnelBwAllocation()
 //
 void ConnectorImpl::notifyLongPulseInternal(bool statusConnected)
 {
+    NvU64 entryTimeUs = timer->getTimeUs();
+    DP_PRINTF(DP_NOTICE, "DP>[dpId=0x%08x] notifyLongPulseInternal: statusConnected=%d", main->getRootDisplayId(), statusConnected);
     // start from scratch when forcePreferredLinkConfig is not set
     if (!(preferredLinkConfig.isValid() && this->forcePreferredLinkConfig))
     {
@@ -7309,17 +7314,21 @@ void ConnectorImpl::notifyLongPulseInternal(bool statusConnected)
             // Check and clear if any pending message here
             if (hal->clearPendingMsg() ||  bForceClearPendingMsg)
             {
-                DP_PRINTF(DP_NOTICE, "DP> Stale MSG found: set branch to D3 and back to D0...");
+                DP_PRINTF(DP_NOTICE, "DP>[dpId=0x%08x] Stale MSG found: set branch to D3 and back to D0...", main->getRootDisplayId());
                 hpdPulseGuardUntilUs = timer->getTimeUs() + DP_HPD_PULSE_GUARD_US;
-                if (hal->isAtLeastVersion(1, 4))
                 {
-                    hal->setMessagingEnable(false, true);
-                }
-                hal->setPowerState(PowerStateD3);
-                hal->setPowerState(PowerStateD0);
-                if (hal->isAtLeastVersion(1, 4))
-                {
-                    hal->setMessagingEnable(true, true);
+                    NvU64 d3d0StartUs = timer->getTimeUs();
+                    if (hal->isAtLeastVersion(1, 4))
+                    {
+                        hal->setMessagingEnable(false, true);
+                    }
+                    hal->setPowerState(PowerStateD3);
+                    hal->setPowerState(PowerStateD0);
+                    if (hal->isAtLeastVersion(1, 4))
+                    {
+                        hal->setMessagingEnable(true, true);
+                    }
+                    DP_PRINTF(DP_NOTICE, "DP>[dpId=0x%08x] D3/D0 stale-msg recovery took %" NvU64_fmtu "us", main->getRootDisplayId(), timer->getTimeUs() - d3d0StartUs);
                 }
             }
             pendingRemoteHdcpDetections = 0;
@@ -7340,10 +7349,18 @@ void ConnectorImpl::notifyLongPulseInternal(bool statusConnected)
                 deleteAllVirtualChannels();
             }
 
-            assessLink();                                   // Link assessment may re-add a stream
-                                                            // and must be done AFTER the messaging system
-                                                            // is restored.
-            discoveryManager->notifyLongPulse(true);
+            {
+                NvU64 assessStartUs = timer->getTimeUs();
+                assessLink();                                   // Link assessment may re-add a stream
+                                                                // and must be done AFTER the messaging system
+                                                                // is restored.
+                DP_PRINTF(DP_NOTICE, "DP>[dpId=0x%08x] assessLink() took %" NvU64_fmtu "us", main->getRootDisplayId(), timer->getTimeUs() - assessStartUs);
+            }
+            {
+                NvU64 discoverStartUs = timer->getTimeUs();
+                discoveryManager->notifyLongPulse(true);
+                DP_PRINTF(DP_NOTICE, "DP>[dpId=0x%08x] discoveryManager->notifyLongPulse(true) took %" NvU64_fmtu "us", main->getRootDisplayId(), timer->getTimeUs() - discoverStartUs);
+            }
 
             //
             // Arm HPD pulse guard after MST branch detection to suppress
@@ -7352,7 +7369,7 @@ void ConnectorImpl::notifyLongPulseInternal(bool statusConnected)
             // after the initial connection is detected.
             //
             hpdPulseGuardUntilUs = timer->getTimeUs() + DP_HPD_PULSE_GUARD_US;
-            DP_PRINTF(DP_NOTICE, "DP> Armed HPD pulse guard after MST branch detection (guardUntilUs=%" NvU64_fmtu ")", hpdPulseGuardUntilUs);
+            DP_PRINTF(DP_NOTICE, "DP>[dpId=0x%08x] Armed HPD pulse guard after MST branch detection (guardUntilUs=%" NvU64_fmtu ")", main->getRootDisplayId(), hpdPulseGuardUntilUs);
         }
         else  // SST case
         {
@@ -7553,6 +7570,7 @@ void ConnectorImpl::notifyLongPulseInternal(bool statusConnected)
 
     }
 completed:
+    DP_PRINTF(DP_NOTICE, "DP>[dpId=0x%08x] notifyLongPulseInternal completed: statusConnected=%d, totalDurationUs=%" NvU64_fmtu, main->getRootDisplayId(), statusConnected, timer->getTimeUs() - entryTimeUs);
     previousPlugged = statusConnected;
 
     fireEvents();
@@ -7613,7 +7631,8 @@ void ConnectorImpl::notifyShortPulse()
         (nowUs < hpdPulseGuardUntilUs))
     {
         DP_PRINTF(DP_INFO,
-                  "DP> Ignoring short pulse during HPD pulse guard (remainingUs=%" NvU64_fmtu ", previousPlugged=%d)",
+                  "DP>[dpId=0x%08x eDP=%d] Ignoring short pulse during HPD pulse guard (remainingUs=%" NvU64_fmtu ", previousPlugged=%d)",
+                  main->getRootDisplayId(), main->isEDP() ? 1 : 0,
                   hpdPulseGuardUntilUs - nowUs,
                   previousPlugged ? 1 : 0);
         return;
@@ -7626,10 +7645,19 @@ void ConnectorImpl::notifyShortPulse()
     //
     if (!connectorActive || !previousPlugged)
     {
-        DP_PRINTF(DP_ERROR, "DP> Got a short pulse after an unplug or before any connector is active!!");
+        if (!previousPlugged)
+        {
+            DP_PRINTF(DP_INFO, "DP>[dpId=0x%08x eDP=%d] Ignoring short pulse: connector not previously plugged (connectorActive=%d)",
+                      main->getRootDisplayId(), main->isEDP() ? 1 : 0, connectorActive ? 1 : 0);
+        }
+        else
+        {
+            DP_PRINTF(DP_ERROR, "DP>[dpId=0x%08x eDP=%d] Got a short pulse before any connector is active!!",
+                      main->getRootDisplayId(), main->isEDP() ? 1 : 0);
+        }
         return;
     }
-    DP_PRINTF(DP_INFO, "DP> IRQ");
+    DP_PRINTF(DP_INFO, "DP>[dpId=0x%08x eDP=%d] IRQ", main->getRootDisplayId(), main->isEDP() ? 1 : 0);
     hal->notifyIRQ();
 
     // Handle CP_IRQ
