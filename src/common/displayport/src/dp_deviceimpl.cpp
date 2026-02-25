@@ -1036,6 +1036,7 @@ bool DeviceImpl::getAsyncSDPSupported()
     unsigned size = 1;
     unsigned sizeCompleted;
     unsigned nakReason = NakUndefined;
+    DeviceImpl *targetDevice = this;
     //
     // On faked mux devices, we cannot check if the device has
     // the capability as we don't have access to aux.
@@ -1049,9 +1050,29 @@ bool DeviceImpl::getAsyncSDPSupported()
     {
         return (this->bAsyncSDPCapable == True);
     }
+
+    if (this->isMultistream() &&
+        (this->peerDevice == Dongle) &&
+        (this->dpcdRevisionMajor == 0))
+    {
+        if (this->parent)
+        {
+            targetDevice = (DeviceImpl *)this->parent;
+            DP_PRINTF(DP_NOTICE,
+                "DP-DEV> Async SDP: Legacy Dongle cannot service remote DPCD reads; using parent branch for DPCD 0x7");
+        }
+        else
+        {
+            DP_PRINTF(DP_WARNING,
+                "DP-DEV> Async SDP: Legacy Dongle has no parent, treating as unsupported");
+            this->bAsyncSDPCapable = False;
+            return false;
+        }
+    }
+
     // Check device capabilities first.
-    if (AuxBus::success != this->getDpcdData(NV_DPCD_DOWN_STREAM_PORT, &byte,
-                                             size, &sizeCompleted, &nakReason) ||
+    if (AuxBus::success != targetDevice->getDpcdData(NV_DPCD_DOWN_STREAM_PORT, &byte,
+                                                     size, &sizeCompleted, &nakReason) ||
         (FLD_TEST_DRF(_DPCD, _DOWN_STREAM_PORT, _MSA_TIMING_PAR_IGNORED, _NO, byte)))
     {
         this->bAsyncSDPCapable = False;
@@ -3158,12 +3179,33 @@ bool DeviceImpl::getIgnoreMSACap()
     unsigned size = 0;
     unsigned nakReason = NakUndefined;
     AuxBus::status status = AuxBus::nack;
+    DeviceImpl *targetDevice = this;
+
     if (bIgnoreMsaCapCached)
     {
         return bIgnoreMsaCap;
     }
+
     if (this->isMultistream())
     {
+        if ((this->peerDevice == Dongle) && (this->dpcdRevisionMajor == 0))
+        {
+            if (this->parent)
+            {
+                targetDevice = (DeviceImpl *)this->parent;
+                DP_PRINTF(DP_NOTICE,
+                    "DP-DEV> getIgnoreMSACap: Legacy Dongle cannot service remote DPCD reads; using parent branch for DPCD 0x7");
+            }
+            else
+            {
+                DP_PRINTF(DP_WARNING,
+                    "DP-DEV> getIgnoreMSACap: Legacy Dongle has no parent, caching as unsupported");
+                bIgnoreMsaCap = false;
+                bIgnoreMsaCapCached = true;
+                return false;
+            }
+        }
+
         //
         // The sideband AUX channel to downstream devices may not be
         // immediately ready after payload allocation and ACT.  Retry
@@ -3177,16 +3219,16 @@ bool DeviceImpl::getIgnoreMSACap()
             byte = 0;
             size = 0;
             nakReason = NakUndefined;
-        status = this->getDpcdData(NV_DPCD_DOWN_STREAM_PORT,
-                                       &byte, sizeof byte, &size, &nakReason);
+            status = targetDevice->getDpcdData(NV_DPCD_DOWN_STREAM_PORT,
+                                               &byte, sizeof byte, &size, &nakReason);
             if (status == AuxBus::success)
                 break;
 
             if (attempt < maxRetries - 1)
             {
                 DP_PRINTF(DP_WARNING,
-                    "DP-DEV> DPCD 0x7 read attempt %u/%u failed (nak=%u), retrying...",
-                    attempt + 1, maxRetries, nakReason);
+                    "DP-DEV> DPCD 0x7 read attempt %u/%u failed (status=%u, nak=%u), retrying...",
+                    attempt + 1, maxRetries, status, nakReason);
                 connector->timer->sleep(retryDelayMs);
             }
         }
@@ -3257,8 +3299,8 @@ bool DeviceImpl::getIgnoreMSACap()
         else
         {
             DP_PRINTF(DP_ERROR,
-                "DP-DEV> DPCD 0x7 read failed after %u attempts, caching as unsupported",
-                maxRetries);
+                "DP-DEV> DPCD 0x7 read failed after %u attempts (status=%u, nak=%u), caching as unsupported",
+                maxRetries, status, nakReason);
             bIgnoreMsaCap = false;
             bIgnoreMsaCapCached = true;
             return false;
