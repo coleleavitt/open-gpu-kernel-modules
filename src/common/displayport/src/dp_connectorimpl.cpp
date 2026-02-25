@@ -63,7 +63,7 @@
  * exposing Turing DevId to customers to address their requirement.
  */
 #define TURING_DEV_ID  0x1E
-#define DP_STALE_MSG_RECOVERY_PULSE_GUARD_US 500000ULL
+#define DP_HPD_PULSE_GUARD_US 500000ULL  // 500ms guard window for HPD pulse noise
 
 using namespace DisplayPort;
 
@@ -112,7 +112,7 @@ ConnectorImpl::ConnectorImpl(MainLink * main, AuxBus * auxBus, Timer * timer, Co
       linkState(DP_TRANSPORT_MODE_INIT),
       bAudioOverRightPanel(false),
       connectorActive(false),
-      staleMsgRecoveryPulseGuardUntilUs(0),
+      hpdPulseGuardUntilUs(0),
       firmwareGroup(0),
       qseNonceGenerator(0),
       bValidQSERequest(false),
@@ -7553,12 +7553,12 @@ void ConnectorImpl::notifyLongPulse(bool statusConnected)
     }
 
     if (!statusConnected &&
-        (staleMsgRecoveryPulseGuardUntilUs != 0) &&
-        (nowUs < staleMsgRecoveryPulseGuardUntilUs))
+        (hpdPulseGuardUntilUs != 0) &&
+        (nowUs < hpdPulseGuardUntilUs))
     {
         DP_PRINTF(DP_WARNING,
-            "DP> Ignoring long-pulse disconnect during stale message recovery guard (remainingUs=%" NvU64_fmtu ", previousPlugged=%d)",
-            staleMsgRecoveryPulseGuardUntilUs - nowUs,
+            "DP> Ignoring long-pulse disconnect during HPD pulse guard (remainingUs=%" NvU64_fmtu ", previousPlugged=%d)",
+            hpdPulseGuardUntilUs - nowUs,
             previousPlugged ? 1 : 0);
         return;
     }
@@ -7815,7 +7815,7 @@ void ConnectorImpl::notifyLongPulseInternal(bool statusConnected)
             if (hal->clearPendingMsg() ||  bForceClearPendingMsg)
             {
                 DP_PRINTF(DP_NOTICE, "DP> Stale MSG found: set branch to D3 and back to D0...");
-                staleMsgRecoveryPulseGuardUntilUs = timer->getTimeUs() + DP_STALE_MSG_RECOVERY_PULSE_GUARD_US;
+                hpdPulseGuardUntilUs = timer->getTimeUs() + DP_HPD_PULSE_GUARD_US;
                 if (hal->isAtLeastVersion(1, 4))
                 {
                     hal->setMessagingEnable(false, true);
@@ -7866,6 +7866,15 @@ void ConnectorImpl::notifyLongPulseInternal(bool statusConnected)
                 isDP12AuthCap = false;
             }
             discoveryManager->notifyLongPulse(true);
+
+            //
+            // Arm HPD pulse guard after MST branch detection to suppress
+            // false disconnect pulses that occur during initial topology enumeration.
+            // Some MST hubs/docks generate transient disconnect signals immediately
+            // after the initial connection is detected.
+            //
+            hpdPulseGuardUntilUs = timer->getTimeUs() + DP_HPD_PULSE_GUARD_US;
+            DP_PRINTF(DP_NOTICE, "DP> Armed HPD pulse guard after MST branch detection (guardUntilUs=%" NvU64_fmtu ")", hpdPulseGuardUntilUs);
         }
         else  // SST case
         {
@@ -8146,12 +8155,12 @@ void ConnectorImpl::notifyShortPulse()
 {
     NvU64 nowUs = timer->getTimeUs();
 
-    if ((staleMsgRecoveryPulseGuardUntilUs != 0) &&
-        (nowUs < staleMsgRecoveryPulseGuardUntilUs))
+    if ((hpdPulseGuardUntilUs != 0) &&
+        (nowUs < hpdPulseGuardUntilUs))
     {
         DP_PRINTF(DP_INFO,
-                  "DP> Ignoring short pulse during stale message recovery guard (remainingUs=%" NvU64_fmtu ", previousPlugged=%d)",
-                  staleMsgRecoveryPulseGuardUntilUs - nowUs,
+                  "DP> Ignoring short pulse during HPD pulse guard (remainingUs=%" NvU64_fmtu ", previousPlugged=%d)",
+                  hpdPulseGuardUntilUs - nowUs,
                   previousPlugged ? 1 : 0);
         return;
     }
