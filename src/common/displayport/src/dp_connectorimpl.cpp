@@ -63,6 +63,7 @@
  * exposing Turing DevId to customers to address their requirement.
  */
 #define TURING_DEV_ID  0x1E
+#define DP_STALE_MSG_RECOVERY_PULSE_GUARD_US 500000ULL
 
 using namespace DisplayPort;
 
@@ -111,6 +112,7 @@ ConnectorImpl::ConnectorImpl(MainLink * main, AuxBus * auxBus, Timer * timer, Co
       linkState(DP_TRANSPORT_MODE_INIT),
       bAudioOverRightPanel(false),
       connectorActive(false),
+      staleMsgRecoveryPulseGuardUntilUs(0),
       firmwareGroup(0),
       qseNonceGenerator(0),
       bValidQSERequest(false),
@@ -7464,6 +7466,7 @@ void ConnectorImpl::disconnectDeviceList()
 void ConnectorImpl::notifyLongPulse(bool statusConnected)
 {
     NvU32 muxState = 0;
+    NvU64 nowUs = timer->getTimeUs();
     NV_DPTRACE_INFO(HOTPLUG, statusConnected, connectorActive, previousPlugged);
     DP_PRINTF(DP_NOTICE,
         "DP> notifyLongPulse: connected=%d previousPlugged=%d connectorActive=%d messagingEnabled=%d mst=%d activeGroupsEmpty=%d",
@@ -7547,6 +7550,17 @@ void ConnectorImpl::notifyLongPulse(bool statusConnected)
                 (firmwareGroup && ((GroupImpl *)firmwareGroup)->headInFirmware) ? 1 : 0);
             return;
         }
+    }
+
+    if (!statusConnected &&
+        (staleMsgRecoveryPulseGuardUntilUs != 0) &&
+        (nowUs < staleMsgRecoveryPulseGuardUntilUs))
+    {
+        DP_PRINTF(DP_WARNING,
+            "DP> Ignoring long-pulse disconnect during stale message recovery guard (remainingUs=%" NvU64_fmtu ", previousPlugged=%d)",
+            staleMsgRecoveryPulseGuardUntilUs - nowUs,
+            previousPlugged ? 1 : 0);
+        return;
     }
 
     this->notifyLongPulseInternal(statusConnected);
@@ -7801,6 +7815,7 @@ void ConnectorImpl::notifyLongPulseInternal(bool statusConnected)
             if (hal->clearPendingMsg() ||  bForceClearPendingMsg)
             {
                 DP_PRINTF(DP_NOTICE, "DP> Stale MSG found: set branch to D3 and back to D0...");
+                staleMsgRecoveryPulseGuardUntilUs = timer->getTimeUs() + DP_STALE_MSG_RECOVERY_PULSE_GUARD_US;
                 if (hal->isAtLeastVersion(1, 4))
                 {
                     hal->setMessagingEnable(false, true);
@@ -8129,6 +8144,18 @@ void ConnectorImpl::handleDpTunnelingIrq()
 
 void ConnectorImpl::notifyShortPulse()
 {
+    NvU64 nowUs = timer->getTimeUs();
+
+    if ((staleMsgRecoveryPulseGuardUntilUs != 0) &&
+        (nowUs < staleMsgRecoveryPulseGuardUntilUs))
+    {
+        DP_PRINTF(DP_INFO,
+                  "DP> Ignoring short pulse during stale message recovery guard (remainingUs=%" NvU64_fmtu ", previousPlugged=%d)",
+                  staleMsgRecoveryPulseGuardUntilUs - nowUs,
+                  previousPlugged ? 1 : 0);
+        return;
+    }
+
     //
     // Do nothing if device is not plugged or
     // resume has not been called after hibernate

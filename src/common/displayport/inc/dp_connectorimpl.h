@@ -252,6 +252,7 @@ namespace DisplayPort
 
         bool previousPlugged;
         bool connectorActive;                    // Keep track of if connector is active to serve any IRQ
+        NvU64 staleMsgRecoveryPulseGuardUntilUs;
 
         Group           * firmwareGroup;         // The group used for book-keeping when we're in firmware mode
 
