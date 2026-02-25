@@ -465,6 +465,13 @@ void ConnectorEventSink::notifyZombieStateChange(DisplayPort::Device *dev,
         return;
     }
 
+    nvEvoLogDisp(pDpyEvo->pDispEvo, EVO_LOG_INFO,
+                 "%s: notifyZombieStateChange dev=%p zombied=%d plugged=%d",
+                 pDpyEvo->name,
+                 dev,
+                 zombied,
+                 dev->isPlugged() ? 1 : 0);
+
     NVDPLibDevicePtr pDpLibDevice = pDpyEvo->dp.pDpLibDevice;
     if (zombied) {
         dev->getOwningGroup()->remove(dev);
