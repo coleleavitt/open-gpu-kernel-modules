@@ -3042,6 +3042,13 @@ static void devmem_page_free(struct page *page)
                                  &gpu->pmm.root_chunks.va_block_lazy_free_q_item);
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
+static void devmem_folio_free(struct folio *folio)
+{
+    devmem_page_free(&folio->page);
+}
+#endif
+
 // This is called by HMM when the CPU faults on a ZONE_DEVICE private entry.
 static vm_fault_t devmem_fault(struct vm_fault *vmf)
 {
@@ -3060,7 +3067,11 @@ static vm_fault_t devmem_fault_entry(struct vm_fault *vmf)
 
 static const struct dev_pagemap_ops uvm_pmm_devmem_ops =
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
+    .folio_free = devmem_folio_free,
+#else
     .page_free = devmem_page_free,
+#endif
     .migrate_to_ram = devmem_fault_entry,
 };
 
@@ -3155,7 +3166,14 @@ static void device_p2p_page_free(struct page *page)
     page->zone_device_data = NULL;
     nv_kref_put(&p2p_mem->refcount, device_p2p_page_free_wake);
 }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
+static void device_p2p_folio_free(struct folio *folio)
+{
+    device_p2p_page_free(&folio->page);
+}
 #endif
+#endif // (UVM_CDMM_PAGES_SUPPORTED() || defined(CONFIG_PCI_P2PDMA)) && defined(NV_STRUCT_PAGE_HAS_ZONE_DEVICE_DATA)
 
 #if UVM_CDMM_PAGES_SUPPORTED()
 static void device_coherent_page_free(struct page *page)
@@ -3163,9 +3181,20 @@ static void device_coherent_page_free(struct page *page)
     device_p2p_page_free(page);
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
+static void device_coherent_folio_free(struct folio *folio)
+{
+    device_coherent_page_free(&folio->page);
+}
+#endif
+
 static const struct dev_pagemap_ops uvm_device_coherent_pgmap_ops =
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
+    .folio_free = device_coherent_folio_free,
+#else
     .page_free = device_coherent_page_free,
+#endif
 };
 
 static NV_STATUS uvm_pmm_cdmm_init(uvm_parent_gpu_t *parent_gpu)
@@ -3302,7 +3331,11 @@ static bool uvm_pmm_gpu_check_orphan_pages(uvm_pmm_gpu_t *pmm)
 
 static const struct dev_pagemap_ops uvm_device_p2p_pgmap_ops =
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
+    .folio_free = device_p2p_folio_free,
+#else
     .page_free = device_p2p_page_free,
+#endif
 };
 
 void uvm_pmm_gpu_device_p2p_init(uvm_parent_gpu_t *parent_gpu)
