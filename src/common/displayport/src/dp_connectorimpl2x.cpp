@@ -732,6 +732,12 @@ bool ConnectorImpl2x::compoundQueryAttachMSTGeneric(Group * target,
     if (compoundQueryLocalLinkPBN > localInfo->lc.pbnTotal())
     {
         compoundQueryResult = false;
+        compoundQueryLocalLinkPBN -= slots_pbn;
+        // Also undo the DP_MST Tunneling NO_VCPF WAR slot added above.
+        if (hal->isDpInTunnelingSupported() && (!this->bDisableDpMstTunnelingNoVcpfWar) && (localInfo->lc.lanes == 4U) && main->isDpTunnelingHwBugWarEnabled())
+        {
+            compoundQueryLocalLinkPBN -= localInfo->lc.PBNForSlots(1U);
+        }
         SET_DP_IMP_ERROR(pErrorCode, DP_IMP_ERROR_INSUFFICIENT_BANDWIDTH)
         return false;
     }
@@ -740,6 +746,12 @@ bool ConnectorImpl2x::compoundQueryAttachMSTGeneric(Group * target,
     if (!willLinkSupportMode(localInfo->lc, localInfo->localModesetInfo))
     {
         compoundQueryResult = false;
+        compoundQueryLocalLinkPBN -= slots_pbn;
+        // Also undo the DP_MST Tunneling NO_VCPF WAR slot added above.
+        if (hal->isDpInTunnelingSupported() && (!this->bDisableDpMstTunnelingNoVcpfWar) && (localInfo->lc.lanes == 4U) && main->isDpTunnelingHwBugWarEnabled())
+        {
+            compoundQueryLocalLinkPBN -= localInfo->lc.PBNForSlots(1U);
+        }
         SET_DP_IMP_ERROR(pErrorCode, DP_IMP_ERROR_WATERMARK_BLANKING)
         return false;
     }
