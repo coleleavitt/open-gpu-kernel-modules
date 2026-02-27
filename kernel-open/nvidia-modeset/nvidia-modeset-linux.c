@@ -115,7 +115,7 @@ static int fail_alloc_core_channel_method = -1;
 module_param_named(fail_alloc_core_channel, fail_alloc_core_channel_method, int, 0400);
 
 MODULE_PARM_DESC(debug, "Enable debug logging");
-static int debug = 0;
+static int debug = 1;
 module_param_named(debug, debug, int, 0600);
 
 #if NVKMS_CONFIG_FILE_SUPPORTED
