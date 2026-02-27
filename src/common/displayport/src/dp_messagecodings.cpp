@@ -57,7 +57,7 @@ ParseResponseStatus LinkAddressMessage::parseResponseAck(EncodedMessage * messag
     DisplayPort::extractGUID(reader, &reply.guid);
     reader->readOrDefault(4 /*zeroes*/, 0);
     reply.numberOfPorts = reader->readOrDefault(4 /*Number_Of_Ports*/, 0xF);
-    DP_PRINTF(DP_NOTICE, "DP-MSG> LINK_ADDRESS reply: numberOfPorts=%u (raw 4-bit value)", reply.numberOfPorts);
+    DP_PRINTF(DP_WARNING, "DP-MSG> LINK_ADDRESS reply: numberOfPorts=%u (raw 4-bit value)", reply.numberOfPorts);
 
     for (unsigned i = 0; i < reply.numberOfPorts; i++)
     {
