@@ -262,6 +262,9 @@ void DiscoveryManager::SinkDetection::detectCompleted(bool passed)
 
 void DiscoveryManager::BranchDetection::detectCompleted(bool present)
 {
+    Address::StringBuffer sb;
+    DP_USED(sb);
+
     //
     //     Handle device not present
     //
@@ -282,6 +285,7 @@ void DiscoveryManager::BranchDetection::detectCompleted(bool present)
     parent->addDevice(parentDevice);
 
     unsigned portsToDelete = (1 << (Address::maxPortCount+1)) - 1;    // 16 ports
+    DP_PRINTF(DP_NOTICE, "DP-DM> detectCompleted('%s'): childCount=%u, enumerating devices", address.toString(sb), childCount);
     for (unsigned i = 0; i < childCount; i++)
     {
         Device newDevice;
@@ -293,6 +297,8 @@ void DiscoveryManager::BranchDetection::detectCompleted(bool present)
         //     DP 1.2 Spec : 2.11.9.5.x
         //
         if (child[i].isInputPort || !child[i].dpPlugged) {
+            DP_PRINTF(DP_NOTICE, "DP-DM>   Port[%u] SKIPPED: isInput=%u, dpPlugged=%u",
+                      i, child[i].isInputPort ? 1 : 0, child[i].dpPlugged ? 1 : 0);
             continue;
         }
 
@@ -350,12 +356,15 @@ void DiscoveryManager::BranchDetection::detectCompleted(bool present)
         // otherwise.. it already existed, and still does
         if (newDevice.branch)
         {
+            DP_PRINTF(DP_NOTICE, "DP-DM>   -> Queueing BRANCH detection for '%s'", newDevice.address.toString(sb));
             parent->detectBranch(newDevice);
         }
         else
         {
             // the new device is a sink. It may or may not have a guid.
             // write the guid if needed.
+            DP_PRINTF(DP_NOTICE, "DP-DM>   -> Queueing SINK detection for '%s' (peerType=%u, legacy=%u)",
+                      newDevice.address.toString(sb), newDevice.peerDevice, newDevice.legacy ? 1 : 0);
             parent->detectSink(newDevice, false);
         }
     }
@@ -642,9 +651,14 @@ void DiscoveryManager::BranchDetection::handleLinkAddressDownReply()
     //      devices not yet in a usable state.
     //
     childCount = linkAddressMessage.resultCount();
+    DP_PRINTF(DP_NOTICE, "DP-DM> LINK_ADDRESS to '%s': childCount=%u", address.toString(sb), childCount);
     for (unsigned i = 0; i < childCount; i++)
     {
         child[i] = *linkAddressMessage.result(i);
+        DP_PRINTF(DP_NOTICE, "DP-DM>   Port[%u]: portNum=%u, isInput=%u, peerType=%u, dpPlugged=%u, legacyPlugged=%u, hasMsg=%u, DPCD=%u.%u",
+                  i, child[i].portNumber, child[i].isInputPort ? 1 : 0, child[i].peerDeviceType,
+                  child[i].dpPlugged ? 1 : 0, child[i].legacyPlugged ? 1 : 0, child[i].hasMessaging ? 1 : 0,
+                  child[i].dpcdRevisionMajor, child[i].dpcdRevisionMinor);
 
         // also update the portmap
         parentDevice.portMap.internalMap = 0xFF00;  // ports 0x8 to 0xF are internal
