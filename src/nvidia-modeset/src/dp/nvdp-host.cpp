@@ -63,7 +63,8 @@ void dpPrintf(DP_LOG_LEVEL severity, const char *format, ...)
 {
     if (severity == DP_SILENT) return;
 
-    if (!nvDoDebugLogging()) return;
+    // Always log errors and warnings, only check debug flag for info/notice
+    if (severity < DP_WARNING && !nvDoDebugLogging()) return;
 
     va_list ap;
     va_start(ap, format);
