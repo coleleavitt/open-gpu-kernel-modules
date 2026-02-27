@@ -609,6 +609,7 @@ bool ConnectorImpl2x::compoundQueryAttachMSTGeneric(Group * target,
     if (compoundQueryLocalLinkPBN > localInfo->lc.pbnTotal())
     {
         compoundQueryResult = false;
+        compoundQueryLocalLinkPBN -= slots_pbn;
         SET_DP_IMP_ERROR(pErrorCode, DP_IMP_ERROR_INSUFFICIENT_BANDWIDTH)
         return false;
     }
@@ -617,6 +618,7 @@ bool ConnectorImpl2x::compoundQueryAttachMSTGeneric(Group * target,
     if (!willLinkSupportMode(localInfo->lc, localInfo->localModesetInfo))
     {
         compoundQueryResult = false;
+        compoundQueryLocalLinkPBN -= slots_pbn;
         SET_DP_IMP_ERROR(pErrorCode, DP_IMP_ERROR_WATERMARK_BLANKING)
         return false;
     }
@@ -674,6 +676,11 @@ bool ConnectorImpl2x::compoundQueryAttachMSTGeneric(Group * target,
                     SET_DP_IMP_ERROR(pErrorCode, DP_IMP_ERROR_INSUFFICIENT_BANDWIDTH)
                 }
             }
+        }
+        // If the compoundQueryResult is false, we need to reset the compoundQueryLocalLinkPBN
+        if (!compoundQueryResult)
+        {
+            compoundQueryLocalLinkPBN -= slots_pbn;
         }
     }
 

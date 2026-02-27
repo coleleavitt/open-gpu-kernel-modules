@@ -1532,6 +1532,7 @@ bool ConnectorImpl::compoundQueryAttachMST(Group * target,
                 // DSC path starts from a clean slate.
                 //
                 bool savedCompoundQueryResult = compoundQueryResult;
+                unsigned savedCompoundQueryLocalLinkPBN = compoundQueryLocalLinkPBN;
 
                 //
                 // Save per-device compound_query_state for all devices in this
@@ -1589,10 +1590,8 @@ bool ConnectorImpl::compoundQueryAttachMST(Group * target,
                 // Generic validation failed — restore all state so the DSC
                 // path runs on a clean slate.
                 //
-                // compoundQueryLocalLinkPBN is already rolled back by
-                // compoundQueryAttachMSTGeneric on failure.
-                //
                 compoundQueryResult = savedCompoundQueryResult;
+                compoundQueryLocalLinkPBN = savedCompoundQueryLocalLinkPBN;
                 for (unsigned idx = 0; idx < savedDevCount; idx++)
                 {
                     savedDevState[idx].dev->bandwidth.compound_query_state
@@ -1606,6 +1605,7 @@ bool ConnectorImpl::compoundQueryAttachMST(Group * target,
                 if (pErrorCode)
                     *pErrorCode = DP_IMP_ERROR_NONE;
             skipPreCheck:
+                ; // Empty statement required after label (C++ standard)
             }
         }
 
