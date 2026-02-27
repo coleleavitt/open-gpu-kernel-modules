@@ -63,7 +63,7 @@ void DiscoveryManager::detectBranch(Device device)
     //     *alternatively* we may have to use the local DPCD HAL to write this
     // 3. Enumerate any children that we may wish to queue detect on.
     //
-    DP_PRINTF(DP_NOTICE, "%s(): target = %s", __FUNCTION__, device.address.toString(sb));
+    DP_PRINTF(DP_WARNING, "DP-DM> %s(): target = %s", __FUNCTION__, device.address.toString(sb));
 
     BranchDetection * branchDetection = new BranchDetection(this, device);
     outstandingBranchDetections.insertBack(branchDetection);
@@ -75,7 +75,7 @@ void DiscoveryManager::detectSink(DiscoveryManager::Device device, bool bFromCSN
     Address::StringBuffer sb;
     DP_USED(sb);
 
-    DP_PRINTF(DP_NOTICE, "%s(): target = %s", __FUNCTION__, device.address.toString(sb));
+    DP_PRINTF(DP_WARNING, "DP-DM> %s(): target = %s", __FUNCTION__, device.address.toString(sb));
     SinkDetection * sinkDetection = new SinkDetection(this, device, bFromCSN);
     sinkDetection->start();
 }
@@ -131,7 +131,7 @@ void DiscoveryManager::addDevice(const DiscoveryManager::Device & device)
     DP_ASSERT(!findDevice(device.address) && "Redundant add");
     sink->discoveryNewDevice(device);
 
-    DP_PRINTF(DP_NOTICE, "DP-DM> New device '%s' %s %s %s", device.address.toString(sb),
+    DP_PRINTF(DP_WARNING, "DP-DM> New device '%s' %s %s %s", device.address.toString(sb),
               device.branch ? "Branch" : "", device.legacy ? "Legacy" : "",
               device.peerDevice == Dongle ? "Dongle" :
               device.peerDevice == DownstreamSink ? "DownstreamSink" : "");
@@ -153,7 +153,7 @@ void DiscoveryManager::removeDevice(Device * device)
     Address::StringBuffer sb;
     DP_USED(sb);
 
-    DP_PRINTF(DP_NOTICE, "DP-DM> Lost device '%s' %s %s %s", device->address.toString(sb),
+    DP_PRINTF(DP_WARNING, "DP-DM> Lost device '%s' %s %s %s", device->address.toString(sb),
               device->branch ? "Branch" : "", device->legacy ? "Legacy" : "",
               device->peerDevice == Dongle ? "Dongle" :
               device->peerDevice == DownstreamSink ? "DownstreamSink" : "");
@@ -285,7 +285,7 @@ void DiscoveryManager::BranchDetection::detectCompleted(bool present)
     parent->addDevice(parentDevice);
 
     unsigned portsToDelete = (1 << (Address::maxPortCount+1)) - 1;    // 16 ports
-    DP_PRINTF(DP_NOTICE, "DP-DM> detectCompleted('%s'): childCount=%u, enumerating devices", address.toString(sb), childCount);
+    DP_PRINTF(DP_WARNING, "DP-DM> detectCompleted('%s'): childCount=%u, enumerating devices", address.toString(sb), childCount);
     for (unsigned i = 0; i < childCount; i++)
     {
         Device newDevice;
@@ -297,7 +297,7 @@ void DiscoveryManager::BranchDetection::detectCompleted(bool present)
         //     DP 1.2 Spec : 2.11.9.5.x
         //
         if (child[i].isInputPort || !child[i].dpPlugged) {
-            DP_PRINTF(DP_NOTICE, "DP-DM>   Port[%u] SKIPPED: isInput=%u, dpPlugged=%u",
+            DP_PRINTF(DP_WARNING, "DP-DM>   Port[%u] SKIPPED: isInput=%u, dpPlugged=%u",
                       i, child[i].isInputPort ? 1 : 0, child[i].dpPlugged ? 1 : 0);
             continue;
         }
@@ -356,14 +356,14 @@ void DiscoveryManager::BranchDetection::detectCompleted(bool present)
         // otherwise.. it already existed, and still does
         if (newDevice.branch)
         {
-            DP_PRINTF(DP_NOTICE, "DP-DM>   -> Queueing BRANCH detection for '%s'", newDevice.address.toString(sb));
+            DP_PRINTF(DP_WARNING, "DP-DM>   -> Queueing BRANCH detection for '%s'", newDevice.address.toString(sb));
             parent->detectBranch(newDevice);
         }
         else
         {
             // the new device is a sink. It may or may not have a guid.
             // write the guid if needed.
-            DP_PRINTF(DP_NOTICE, "DP-DM>   -> Queueing SINK detection for '%s' (peerType=%u, legacy=%u)",
+            DP_PRINTF(DP_WARNING, "DP-DM>   -> Queueing SINK detection for '%s' (peerType=%u, legacy=%u)",
                       newDevice.address.toString(sb), newDevice.peerDevice, newDevice.legacy ? 1 : 0);
             parent->detectSink(newDevice, false);
         }
@@ -388,7 +388,7 @@ void DiscoveryManager::BranchDetection::expired(const void * tag)
     {
         Address::StringBuffer sb;
         DP_USED(sb);
-        DP_PRINTF(DP_NOTICE, "DP-DM> Requeing LINK_ADDRESS_MESSAGE to %s", address.toString(sb));
+        DP_PRINTF(DP_WARNING, "DP-DM> Requeing LINK_ADDRESS_MESSAGE to %s", address.toString(sb));
 
         retryLinkAddressMessage = false;
         linkAddressMessage.set(address);
@@ -401,11 +401,11 @@ void DiscoveryManager::BranchDetection::expired(const void * tag)
 
         Address::StringBuffer sb;
         DP_USED(sb);
-        DP_PRINTF(DP_NOTICE, "DP-DM> Requeing REMOTE_DPCD_WRITE_MESSAGE to %s", parentAddress.toString(sb));
+        DP_PRINTF(DP_WARNING, "DP-DM> Requeing REMOTE_DPCD_WRITE_MESSAGE to %s", parentAddress.toString(sb));
 
         retryRemoteDpcdWriteMessage = false;
         remoteDpcdWriteMessage.set(parentAddress, parentAddress.tail(), NV_DPCD_GUID, sizeof(GUID), (NvU8 *)&parentDevice.peerGuid);
-        DP_PRINTF(DP_NOTICE, "DP-DM> Setting GUID (remotely) for '%s' sent REMOTE_DPCD_WRITE {%p}", address.toString(sb), &remoteDpcdWriteMessage);
+        DP_PRINTF(DP_WARNING, "DP-DM> Setting GUID (remotely) for '%s' sent REMOTE_DPCD_WRITE {%p}", address.toString(sb), &remoteDpcdWriteMessage);
 
         parent->messageManager->post(&remoteDpcdWriteMessage, this);
     }
@@ -420,7 +420,7 @@ void DiscoveryManager::SinkDetection::expired(const void * tag)
 
         Address::StringBuffer sb;
         DP_USED(sb);
-        DP_PRINTF(DP_NOTICE, "DP-DM> Requeueing LAM message to %s", parentAddress.toString(sb));
+        DP_PRINTF(DP_WARNING, "DP-DM> Requeueing LAM message to %s", parentAddress.toString(sb));
 
         retryLinkAddressMessage = false;
         linkAddressMessage.set(parentAddress);
@@ -434,11 +434,11 @@ void DiscoveryManager::SinkDetection::expired(const void * tag)
 
         Address::StringBuffer sb;
         DP_USED(sb);
-        DP_PRINTF(DP_NOTICE, "DP-DM> Requeueing REMOTE_DPCD_READ_MESSAGE to %s", parentAddress.toString(sb));
+        DP_PRINTF(DP_WARNING, "DP-DM> Requeueing REMOTE_DPCD_READ_MESSAGE to %s", parentAddress.toString(sb));
 
         retryRemoteDpcdReadMessage = false;
         remoteDpcdReadMessage.set(parentAddress, parentAddress.tail(), NV_DPCD_GUID, sizeof(GUID));
-        DP_PRINTF(DP_NOTICE, "DP-DM> Setting GUID (remotely) for '%s' sent REMOTE_DPCD_READ {%p}", address.toString(sb), &remoteDpcdReadMessage);
+        DP_PRINTF(DP_WARNING, "DP-DM> Setting GUID (remotely) for '%s' sent REMOTE_DPCD_READ {%p}", address.toString(sb), &remoteDpcdReadMessage);
 
         parent->messageManager->post(&remoteDpcdReadMessage, this);
     }
@@ -449,14 +449,14 @@ void DiscoveryManager::SinkDetection::expired(const void * tag)
 
         Address::StringBuffer sb;
         DP_USED(sb);
-        DP_PRINTF(DP_NOTICE, "DP-DM> Requeueing REMOTE_DPCD_WRITE_MESSAGE to %s", parentAddress.toString(sb));
+        DP_PRINTF(DP_WARNING, "DP-DM> Requeueing REMOTE_DPCD_WRITE_MESSAGE to %s", parentAddress.toString(sb));
 
         retryRemoteDpcdWriteMessage = false;
         remoteDpcdWriteMessage.set(parentAddress,
                                     parentAddress.tail(),
                                     NV_DPCD_GUID, sizeof(GUID),
                                     (NvU8 *)&device.peerGuid);
-        DP_PRINTF(DP_NOTICE, "DP-DM> Setting GUID (remotely) for '%s' sent REMOTE_DPCD_WRITE {%p}", address.toString(sb), &remoteDpcdWriteMessage);
+        DP_PRINTF(DP_WARNING, "DP-DM> Setting GUID (remotely) for '%s' sent REMOTE_DPCD_WRITE {%p}", address.toString(sb), &remoteDpcdWriteMessage);
 
         parent->messageManager->post(&remoteDpcdWriteMessage, this);
     }
@@ -574,7 +574,7 @@ void DiscoveryManager::SinkDetection::handleLinkAddressDownReply()
     }
     device.portMap.inputMap |= (1 << child.portNumber);
 
-    DP_PRINTF(DP_NOTICE, "DP-DM> handleLinkAddressDownReply for sink device on '%s': DPCD Rev = %d.%d",
+    DP_PRINTF(DP_WARNING, "DP-DM> handleLinkAddressDownReply for sink device on '%s': DPCD Rev = %d.%d",
               address.toString(sb), device.dpcdRevisionMajor, device.dpcdRevisionMinor);
 
     // Check if the device already has a GUID
@@ -600,7 +600,7 @@ void DiscoveryManager::SinkDetection::handleRemoteDpcdReadDownReply()
 {
     Address::StringBuffer sb;
     DP_USED(sb);
-    DP_PRINTF(DP_NOTICE, "DP-DM> REMOTE_DPCD_READ {%p} at '%s' completed",
+    DP_PRINTF(DP_WARNING, "DP-DM> REMOTE_DPCD_READ {%p} at '%s' completed",
               (MessageManager::Message *)&remoteDpcdReadMessage,
               address.toString(sb));
     if (remoteDpcdReadMessage.replyNumOfBytesReadDPCD() != sizeof(GUID))
@@ -631,7 +631,7 @@ void DiscoveryManager::SinkDetection::handleRemoteDpcdReadDownReply()
                                     NV_DPCD_GUID, sizeof(GUID),
                                     (NvU8 *)&device.peerGuid);
 
-        DP_PRINTF(DP_NOTICE, "DP-DM> Setting GUID (remotely) for '%s' sent REMOTE_DPCD_WRITE {%p}",
+        DP_PRINTF(DP_WARNING, "DP-DM> Setting GUID (remotely) for '%s' sent REMOTE_DPCD_WRITE {%p}",
                   address.toString(sb), &remoteDpcdWriteMessage);
 
         parent->messageManager->post(&remoteDpcdWriteMessage, this);
@@ -651,11 +651,11 @@ void DiscoveryManager::BranchDetection::handleLinkAddressDownReply()
     //      devices not yet in a usable state.
     //
     childCount = linkAddressMessage.resultCount();
-    DP_PRINTF(DP_NOTICE, "DP-DM> LINK_ADDRESS to '%s': childCount=%u", address.toString(sb), childCount);
+    DP_PRINTF(DP_WARNING, "DP-DM> LINK_ADDRESS to '%s': childCount=%u", address.toString(sb), childCount);
     for (unsigned i = 0; i < childCount; i++)
     {
         child[i] = *linkAddressMessage.result(i);
-        DP_PRINTF(DP_NOTICE, "DP-DM>   Port[%u]: portNum=%u, isInput=%u, peerType=%u, dpPlugged=%u, legacyPlugged=%u, hasMsg=%u, DPCD=%u.%u",
+        DP_PRINTF(DP_WARNING, "DP-DM>   Port[%u]: portNum=%u, isInput=%u, peerType=%u, dpPlugged=%u, legacyPlugged=%u, hasMsg=%u, DPCD=%u.%u",
                   i, child[i].portNumber, child[i].isInputPort ? 1 : 0, child[i].peerDeviceType,
                   child[i].dpPlugged ? 1 : 0, child[i].legacyPlugged ? 1 : 0, child[i].hasMessaging ? 1 : 0,
                   child[i].dpcdRevisionMajor, child[i].dpcdRevisionMinor);
@@ -692,7 +692,7 @@ void DiscoveryManager::BranchDetection::handleLinkAddressDownReply()
 
         if (address == Address(0))
         {
-            DP_PRINTF(DP_NOTICE, "DP-DM> Setting GUID (locally) for '%s'", address.toString(sb));
+            DP_PRINTF(DP_WARNING, "DP-DM> Setting GUID (locally) for '%s'", address.toString(sb));
             //
             // We're locally connected, use the DPCD HAL to write the new GUID
             //
@@ -716,7 +716,7 @@ void DiscoveryManager::BranchDetection::handleLinkAddressDownReply()
                                        NV_DPCD_GUID, sizeof(GUID),
                                        (NvU8 *)&parentDevice.peerGuid);
 
-            DP_PRINTF(DP_NOTICE, "DP-DM> Setting GUID (remotely) for '%s' sent REMOTE_DPCD_WRITE {%p}",
+            DP_PRINTF(DP_WARNING, "DP-DM> Setting GUID (remotely) for '%s' sent REMOTE_DPCD_WRITE {%p}",
                      address.toString(sb), &remoteDpcdWriteMessage);
 
             parent->messageManager->post(&remoteDpcdWriteMessage, this);
@@ -762,7 +762,7 @@ void DiscoveryManager::BranchDetection::start()
 
     Address::StringBuffer sb;
     DP_USED(sb);
-    DP_PRINTF(DP_NOTICE, "DP-DM> Detecting '%s' (sending LINK_ADDRESS_MESSAGE {%p})",
+    DP_PRINTF(DP_WARNING, "DP-DM> Detecting '%s' (sending LINK_ADDRESS_MESSAGE {%p})",
               address.toString(sb),
               (MessageManager::Message *)&linkAddressMessage);
 
@@ -789,7 +789,7 @@ void DiscoveryManager::SinkDetection::start()
         // Create a LINK_ADDRESS_MESSAGE to send to parent of this target
         linkAddressMessage.set(address.parent());
 
-        DP_PRINTF(DP_NOTICE, "DP-DM> Detecting '%s' (sending LINK_ADDRESS_MESSAGE {%p})",
+        DP_PRINTF(DP_WARNING, "DP-DM> Detecting '%s' (sending LINK_ADDRESS_MESSAGE {%p})",
                   address.toString(sb),
                   (MessageManager::Message *)&linkAddressMessage);
         parent->messageManager->post(&linkAddressMessage, this);
