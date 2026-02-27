@@ -136,7 +136,7 @@ static int fail_alloc_core_channel_method = -1;
 module_param_named(fail_alloc_core_channel, fail_alloc_core_channel_method, int, 0444);
 
 MODULE_PARM_DESC(debug, "Enable debug logging");
-static int debug = 0;
+static int debug = 1;
 module_param_named(debug, debug, int, 0644);
 
 #if IS_ENABLED(CONFIG_EXTCON_DISP_CABLE_STATE)
