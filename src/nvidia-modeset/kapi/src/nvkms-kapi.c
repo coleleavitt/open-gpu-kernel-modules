@@ -1668,13 +1668,13 @@ static struct NvKmsKapiMemory* AllocateMemory
      * reducing nvkms_lock hold time and preventing the cascading lock
      * starvation that causes the Wayland freeze.
      */
-    if (!allocSucceeded && params->useVideoMemory) {
+    if (!allocSucceeded && params->useVideoMemory &&
+        params->type != NVKMS_KAPI_ALLOCATION_TYPE_SCANOUT) {
         allocSucceeded =
             nvKmsKapiAllocateSystemMemory(device, hRmHandle, params->layout,
                                           params->size, params->type,
                                           params->compressible);
         if (allocSucceeded) {
-            /* Mark that we fell back — caller may need to know */
             params->useVideoMemory = NV_FALSE;
         }
     }

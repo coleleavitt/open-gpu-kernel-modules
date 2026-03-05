@@ -957,6 +957,7 @@ struct nvkms_timer_t {
     nvkms_timer_proc_t *proc;
     void *dataPtr;
     NvU32 dataU32;
+    NvU32 retryCount;
     struct list_head timers_list;
 };
 
@@ -990,6 +991,7 @@ static void nvkms_kthread_q_callback(void *arg)
      */
     if (timer->kernel_timer_created) {
         nv_timer_delete_sync(&timer->kernel_timer);
+        timer->kernel_timer_created = NV_FALSE;
     }
 
     /*
@@ -1015,7 +1017,12 @@ static void nvkms_kthread_q_callback(void *arg)
      */
     if (down_timeout(&nvkms_lock, msecs_to_jiffies(50)) != 0) {
         nvkms_read_unlock_pm_lock();
-        /* Re-queue this timer callback to try again shortly */
+        timer->retryCount++;
+        WARN_ONCE(timer->retryCount > 100,
+                  "nvkms: timer retry count exceeded 100 (lock contention)\n");
+        spin_lock_irqsave(&nvkms_timers.lock, flags);
+        list_add(&timer->timers_list, &nvkms_timers.list);
+        spin_unlock_irqrestore(&nvkms_timers.lock, flags);
         nvkms_queue_work(&nvkms_kthread_q, &timer->nv_kthread_q_item);
         return;
     }
