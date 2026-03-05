@@ -1654,6 +1654,31 @@ static struct NvKmsKapiMemory* AllocateMemory
             : nvKmsKapiAllocateSystemMemory(device, hRmHandle, params->layout,
                                             params->size, params->type,
                                             params->compressible);
+
+    /*
+     * FIX: Fall back to system memory when VRAM allocation fails.
+     *
+     * When VRAM is exhausted (common with multiple high-res Wayland clients),
+     * the original code returns NULL immediately, causing the GEM allocation
+     * to fail.  The caller may then retry, holding nvkms_lock for the duration,
+     * which blocks the compositor's page flip path and leads to a system-wide
+     * deadlock.
+     *
+     * By falling back to system memory, we avoid the failure path entirely,
+     * reducing nvkms_lock hold time and preventing the cascading lock
+     * starvation that causes the Wayland freeze.
+     */
+    if (!allocSucceeded && params->useVideoMemory) {
+        allocSucceeded =
+            nvKmsKapiAllocateSystemMemory(device, hRmHandle, params->layout,
+                                          params->size, params->type,
+                                          params->compressible);
+        if (allocSucceeded) {
+            /* Mark that we fell back — caller may need to know */
+            params->useVideoMemory = NV_FALSE;
+        }
+    }
+
     if (!allocSucceeded) {
         nvKmsKapiFreeRmHandle(device, hRmHandle);
         FreeMemory(device, memory);

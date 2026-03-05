@@ -998,7 +998,27 @@ static void nvkms_kthread_q_callback(void *arg)
      */
     nvkms_read_lock_pm_lock();
 
-    down(&nvkms_lock);
+    /*
+     * FIX: Use down_timeout instead of unconditional down() to prevent
+     * indefinite blocking of the display event kthread.
+     *
+     * When a client (e.g., Java/PyCharm via EGL) holds nvkms_lock during
+     * a long GEM buffer allocation, this kthread — which services display
+     * events like page flips and DP_IRQ — blocks forever on down().  The
+     * compositor then cannot complete atomic commits, cannot signal buffer
+     * release points, and the client blocks waiting for those release
+     * points, creating a circular deadlock that freezes the system.
+     *
+     * A 50ms timeout (3 frames at 60Hz) lets the timer retry without
+     * starving the display pipeline.  If the lock cannot be acquired
+     * after the timeout, re-queue the work item for another attempt.
+     */
+    if (down_timeout(&nvkms_lock, msecs_to_jiffies(50)) != 0) {
+        nvkms_read_unlock_pm_lock();
+        /* Re-queue this timer callback to try again shortly */
+        nvkms_queue_work(&nvkms_kthread_q, &timer->nv_kthread_q_item);
+        return;
+    }
 
     if (timer->isRefPtr) {
         // If the object this timer refers to was destroyed, treat the timer as
