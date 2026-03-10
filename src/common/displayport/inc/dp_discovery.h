@@ -266,11 +266,17 @@ namespace DisplayPort
             unsigned                 retriesRemoteDpcdWriteMessage;
             bool                     retryRemoteDpcdWriteMessage;
 
+            // Port re-enumeration for slow MST hubs (race condition fix)
+            unsigned                 pendingPortsMask;        // Bitmask of ports with dpPlugged=0 that need re-check
+            bool                     retryPendingPorts;       // Schedule delayed LINK_ADDRESS re-query
+            unsigned                 retriesPendingPorts;     // Number of re-enumeration attempts
+
             BranchDetection(DiscoveryManager * parent, const Device & device)
                 : parentDevice(device), address(parentDevice.address),
                   parent(parent), completed(false),
                   retryLinkAddressMessage(false), retriesLinkAddressMessage(0),
-                  retriesRemoteDpcdWriteMessage(0), retryRemoteDpcdWriteMessage(false)
+                  retriesRemoteDpcdWriteMessage(0), retryRemoteDpcdWriteMessage(false),
+                  pendingPortsMask(0), retryPendingPorts(false), retriesPendingPorts(0)
             {}
 
             void expired(const void * tag);

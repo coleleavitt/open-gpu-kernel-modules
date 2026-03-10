@@ -296,9 +296,13 @@ void DiscoveryManager::BranchDetection::detectCompleted(bool present)
         //     Input port? Nothing plugged in? Delete the tree of all devices under this one
         //     DP 1.2 Spec : 2.11.9.5.x
         //
-        if (child[i].isInputPort || !child[i].dpPlugged) {
-            DP_PRINTF(DP_WARNING, "DP-DM>   Port[%u] SKIPPED: isInput=%u, dpPlugged=%u",
-                      i, child[i].isInputPort ? 1 : 0, child[i].dpPlugged ? 1 : 0);
+        if (child[i].isInputPort) {
+            DP_PRINTF(DP_WARNING, "DP-DM>   Port[%u] SKIPPED: isInput=1", i);
+            continue;
+        }
+        if (!child[i].dpPlugged) {
+            DP_PRINTF(DP_WARNING, "DP-DM>   Port[%u] SKIPPED: dpPlugged=0 (will retry)", i);
+            pendingPortsMask |= (1 << child[i].portNumber);
             continue;
         }
 
@@ -377,7 +381,21 @@ void DiscoveryManager::BranchDetection::detectCompleted(bool present)
             parent->removeDeviceTree(a);
         }
 
-    // We're done
+    //
+    // If any non-input ports showed dpPlugged=0, schedule delayed re-enumeration.
+    // This handles slow MST hubs (e.g., Synaptics in USB-C docks) that haven't
+    // finished internal enumeration when the initial LINK_ADDRESS is sent.
+    //
+    if (pendingPortsMask != 0 && retriesPendingPorts < 3)
+    {
+        DP_PRINTF(DP_WARNING, "DP-DM> '%s': pendingPortsMask=0x%x, scheduling re-enumeration (retry %u)",
+                  address.toString(sb), pendingPortsMask, retriesPendingPorts + 1);
+        retryPendingPorts = true;
+        retriesPendingPorts++;
+        parent->timer->queueCallback(this, "PEND", 1500);
+        return;
+    }
+
     completed = true;
     delete this;
 }
@@ -408,6 +426,18 @@ void DiscoveryManager::BranchDetection::expired(const void * tag)
         DP_PRINTF(DP_WARNING, "DP-DM> Setting GUID (remotely) for '%s' sent REMOTE_DPCD_WRITE {%p}", address.toString(sb), &remoteDpcdWriteMessage);
 
         parent->messageManager->post(&remoteDpcdWriteMessage, this);
+    }
+    else if (retryPendingPorts)
+    {
+        Address::StringBuffer sb;
+        DP_USED(sb);
+        DP_PRINTF(DP_WARNING, "DP-DM> Re-querying LINK_ADDRESS for pending ports (mask=0x%x) on '%s'",
+                  pendingPortsMask, address.toString(sb));
+
+        retryPendingPorts = false;
+        pendingPortsMask = 0;
+        linkAddressMessage.set(address);
+        parent->messageManager->post(&linkAddressMessage, this);
     }
 }
 
