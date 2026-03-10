@@ -969,6 +969,8 @@ static struct {
     struct list_head list;
 } nvkms_timers;
 
+static void nvkms_queue_work(nv_kthread_q_t *q, nv_kthread_q_item_t *q_item);
+
 static void nvkms_kthread_q_callback(void *arg)
 {
     struct nvkms_timer_t *timer = arg;

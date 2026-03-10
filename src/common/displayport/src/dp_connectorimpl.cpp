@@ -7619,6 +7619,19 @@ void ConnectorImpl::notifyLongPulseInternal(bool statusConnected)
 {
     NvU64 entryTimeUs = timer->getTimeUs();
     DP_PRINTF(DP_NOTICE, "DP>[dpId=0x%08x] notifyLongPulseInternal: statusConnected=%d", main->getRootDisplayId(), statusConnected);
+    
+    //
+    // Update previousPlugged immediately at the start of long pulse processing.
+    // If we wait until the end (after discovery), short pulses arriving during
+    // long pulse processing will be incorrectly rejected with "connector not
+    // previously plugged" because previousPlugged is still false from the
+    // previous cycle. This causes short pulses during MST discovery to be
+    // ignored, preventing proper link re-training and causing VBlank timing
+    // corruption (manifesting as faster-than-expected vblank intervals and
+    // display artifacting).
+    //
+    previousPlugged = statusConnected;
+    
     // start from scratch when forcePreferredLinkConfig is not set
     if (!(preferredLinkConfig.isValid() && this->forcePreferredLinkConfig))
     {
@@ -8117,7 +8130,6 @@ void ConnectorImpl::notifyLongPulseInternal(bool statusConnected)
     }
 completed:
     DP_PRINTF(DP_NOTICE, "DP>[dpId=0x%08x] notifyLongPulseInternal completed: statusConnected=%d, totalDurationUs=%" NvU64_fmtu, main->getRootDisplayId(), statusConnected, timer->getTimeUs() - entryTimeUs);
-    previousPlugged = statusConnected;
 
     fireEvents();
 
