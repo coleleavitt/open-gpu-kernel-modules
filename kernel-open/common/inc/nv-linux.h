@@ -1727,9 +1727,15 @@ typedef enum
 #include <linux/reset.h>
 #include <linux/dma-buf.h>
 #include <linux/gpio.h>
+#if __has_include(<linux/of_gpio.h>)
 #include <linux/of_gpio.h>
+#endif
+#if __has_include(<linux/of_device.h>)
 #include <linux/of_device.h>
+#endif
+#if __has_include(<linux/of_platform.h>)
 #include <linux/of_platform.h>
+#endif
 
 #if defined(NV_LINUX_INTERCONNECT_H_PRESENT)
 #include <linux/interconnect.h>
