@@ -2080,12 +2080,10 @@ void nv_drm_register_drm_device(const struct NvKmsKapiGpuInfo *gpu_info)
 
         /*
          * The fbdev setup functions above may override the
-         * `pm_vt_switch_required` state of our PCI device. A VT switch is
-         * only required when fbdev console is active (Xorg/fbcon). Wayland
-         * compositors handle DRM state restoration via session events and
-         * do not need VT switching, which can actually break them.
+         * `pm_vt_switch_required` state of our PCI device. For now, a VT switch
+         * is required during suspend and resume.
          */
-        pm_vt_switch_required(dev->dev, dev->fb_helper != NULL);
+        pm_vt_switch_required(dev->dev, true);
     }
 #endif /* defined(NV_DRM_FBDEV_AVAILABLE) */
 
