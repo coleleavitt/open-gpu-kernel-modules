@@ -4494,6 +4494,8 @@ static int nv_pm_notifier(struct notifier_block *nb, unsigned long event, void *
     nv_power_state_t power_state;
     const char *name;
 
+    printk(KERN_INFO "[NV_SUSPEND] nv_pm_notifier: event=%lu\n", event);
+
     switch (event) {
     case PM_SUSPEND_PREPARE:
         power_state = NV_POWER_STATE_IN_STANDBY;
@@ -4512,10 +4514,15 @@ static int nv_pm_notifier(struct notifier_block *nb, unsigned long event, void *
         break;
 
     default:
+        printk(KERN_INFO "[NV_SUSPEND] nv_pm_notifier: unknown event %lu, returning NOTIFY_DONE\n", event);
         return NOTIFY_DONE;
     }
 
+    printk(KERN_INFO "[NV_SUSPEND] nv_pm_notifier: calling nv_set_system_power_state('%s') depth=%d\n",
+           name, nv_procfs_pm_action_depth);
     status = nv_set_system_power_state(power_state, nv_procfs_pm_action_depth);
+    printk(KERN_INFO "[NV_SUSPEND] nv_pm_notifier: nv_set_system_power_state('%s') returned 0x%x\n",
+           name, status);
     if (status != NV_OK) {
         nv_printf(NV_DBG_ERRORS, "NVRM: PM %s notifier failed: 0x%x\n", name, status);
         return NOTIFY_BAD;
@@ -4671,8 +4678,15 @@ nvidia_suspend(
     if ((nv->flags & NV_FLAG_SUSPENDED) != 0)
     {
         nvl->suspend_count++;
+        printk(KERN_INFO "[NV_SUSPEND] nvidia_suspend: already suspended (count=%d), skip to pci_pm\n",
+               nvl->suspend_count);
         goto pci_pm;
     }
+
+    printk(KERN_INFO "[NV_SUSPEND] nvidia_suspend: preserve_vidmem=%d needs_preservation=%d is_procfs=%d\n",
+           nv->preserve_vidmem_allocations,
+           nv_dev_needs_vidmem_preservation(nv),
+           is_procfs_suspend);
 
     if (nv->preserve_vidmem_allocations &&
         nv_dev_needs_vidmem_preservation(nv) &&
@@ -4682,6 +4696,7 @@ nvidia_suspend(
                       "PreserveVideoMemoryAllocations module parameter is set. "
                       "System Power Management attempted without driver procfs suspend interface. "
                       "Please refer to the 'Configuring Power Management Support' section in the driver README.\n");
+        printk(KERN_ERR "[NV_SUSPEND] nvidia_suspend: BLOCKED by PreserveVideoMemoryAllocations!\n");
         status = NV_ERR_NOT_SUPPORTED;
         goto done;
     }
@@ -5014,10 +5029,14 @@ int nv_pmops_suspend(
 {
     NV_STATUS status;
 
+    printk(KERN_INFO "[NV_SUSPEND] nv_pmops_suspend: START dev=%s\n", dev_name(dev));
     status = nvidia_suspend(dev, NV_PM_ACTION_STANDBY, NV_FALSE);
+    printk(KERN_INFO "[NV_SUSPEND] nv_pmops_suspend: nvidia_suspend returned 0x%x\n", status);
 
-    if (status != NV_OK)
+    if (status != NV_OK) {
+        printk(KERN_INFO "[NV_SUSPEND] nv_pmops_suspend: FAILED, calling nvidia_resume\n");
         nvidia_resume(dev, NV_PM_ACTION_RESUME);
+    }
 
     return (status == NV_OK) ? 0 : -EIO;
 }
@@ -5117,6 +5136,8 @@ int nv_pmops_runtime_suspend(
     struct pci_dev *pci_dev = to_pci_dev(dev);
     nv_linux_state_t *nvl = pci_get_drvdata(pci_dev);
     nv_state_t *nv = NV_STATE_PTR(nvl);
+
+    printk(KERN_INFO "[NV_SUSPEND] nv_pmops_runtime_suspend: START dev=%s\n", dev_name(dev));
 
 #if defined(CONFIG_PM_DEVFREQ)
     if (nvl->devfreq_suspend != NULL)
