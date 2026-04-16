@@ -1729,6 +1729,12 @@ typedef enum
 #include <linux/gpio.h>
 #if __has_include(<linux/of_gpio.h>)
 #include <linux/of_gpio.h>
+#else
+static inline int of_get_named_gpio(const struct device_node *np,
+                                    const char *propname, int index)
+{
+    return -ENOSYS;
+}
 #endif
 #if __has_include(<linux/of_device.h>)
 #include <linux/of_device.h>
