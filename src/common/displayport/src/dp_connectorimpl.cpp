@@ -1671,6 +1671,8 @@ bool ConnectorImpl::compoundQueryAttachMSTIsDscPossible
                 ((dev->devDoingDscDecompression == dev) &&
                 (dev->isLogical() && dev->parent)))
             {
+                DP_ASSERT((dev->devDoingDscDecompression != NULL) &&
+                          (dev->parent != NULL));
                 //
                 // If DSC decoding is going to happen at sink's parent or
                 // decoding will be done by sink but sink is a logical port,
@@ -7497,7 +7499,7 @@ void ConnectorImpl::notifyLongPulse(bool statusConnected)
             return;
         }
 
-        if (existingDev && (existingDev->isPreviouslyFakedMuxDevice() || bIgnoreUnplugUnlessRequested) && !existingDev->isMarkedForDeletion())
+        if (existingDev && existingDev->isPreviouslyFakedMuxDevice() && !existingDev->isMarkedForDeletion())
         {
             DP_PRINTF(DP_NOTICE, "NotifyLongPulse ignored as there is a previously faked device but it is not marked for deletion");
             if (!statusConnected)
@@ -7507,6 +7509,12 @@ void ConnectorImpl::notifyLongPulse(bool statusConnected)
             }
             return;
         }
+
+		if (existingDev && bIgnoreUnplugUnlessRequested && !statusConnected && !existingDev->isMarkedForDeletion())
+		{
+			sink->notifyDetectComplete();
+			return;
+		}
     }
 
     if (previousPlugged && statusConnected)
