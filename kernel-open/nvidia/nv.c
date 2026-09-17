@@ -4642,12 +4642,23 @@ static int nv_pm_notifier(struct notifier_block *nb, unsigned long event, void *
         break;
 
     case PM_HIBERNATION_PREPARE:
+    case PM_RESTORE_PREPARE:
+        /*
+         * PM_RESTORE_PREPARE fires before restoring a hibernation image.
+         * The boot kernel must quiesce devices (via nv_pmops_freeze) before
+         * the memory image overwrites everything. Setting hibernate state here
+         * ensures nvidia_suspend sees NV_FLAG_SUSPENDED and early-outs,
+         * avoiding the PreserveVideoMemoryAllocations check that would fail
+         * since no PM notifier ran to set up is_procfs_suspend=TRUE.
+         */
         power_state = NV_POWER_STATE_IN_HIBERNATE;
-        name = "hibernate";
+        name = (event == PM_RESTORE_PREPARE) ? "restore" : "hibernate";
         break;
 
     case PM_POST_SUSPEND:
     case PM_POST_HIBERNATION:
+    case PM_POST_RESTORE:
+        /* PM_POST_RESTORE fires if restore fails and boot kernel continues */
         power_state = NV_POWER_STATE_RUNNING;
         name = "resume";
         break;
